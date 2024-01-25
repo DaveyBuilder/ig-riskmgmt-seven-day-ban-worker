@@ -29,11 +29,7 @@ export async function tradingBan(request, env, ctx, usingDemoAccount) {
             totalValue += openSummedPositions[key].pl;
         }
         if (totalValue / accountBalance < -0.02) {
-
-            //Remove this when EU Stocks 50 is normalized
-            if (key !== "EU Stocks 50") {
-                instrumentNamesToClose.push(key);
-            }
+            instrumentNamesToClose.push(key);
         }
     }
 
