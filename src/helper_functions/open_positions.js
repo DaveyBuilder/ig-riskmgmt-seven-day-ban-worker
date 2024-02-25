@@ -1,60 +1,32 @@
-export async function getOpenPositions(env, CST, X_SECURITY_TOKEN, baseURL, accountBalance) {
+export async function getOpenPositions(env, CST, X_SECURITY_TOKEN, baseURL) {
 
-    const openPositionsResponse = await fetch(`${baseURL}/positions`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-IG-API-KEY': env.IG_API_KEY,
-            'Version': '2',
-            'CST': CST,
-            'X-SECURITY-TOKEN': X_SECURITY_TOKEN
-        }
-    });
+    let attempts = 1;
+    let openPositionsResponse;
+    while (attempts <= 3) {
 
-    if (!openPositionsResponse.ok) {
-        throw new Error(`Error getting open positions. HTTP status: ${openPositionsResponse.status}`);
-    }
+        openPositionsResponse = await fetch(`${baseURL}/positions`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-IG-API-KEY': env.IG_API_KEY,
+                'Version': '2',
+                'CST': CST,
+                'X-SECURITY-TOKEN': X_SECURITY_TOKEN
+            }
+        });
 
-    const openPositionsData = await openPositionsResponse.json();
-
-    // Initialize an empty object to store the summed profit and loss for each market
-    let openSummedPositions = {};
-
-    openPositionsData.positions.forEach(position => {
-
-        const instrumentName = position.market.instrumentName;
-        const direction = position.position.direction;
-        const positionSize = position.position.size;
-
-        let pl;
-
-        if (direction === 'BUY') {
-            const price = position.market.bid;
-            // Using Math.round() to keep the pl at 2 decimal places
-            pl = Math.round((price - position.position.level) * positionSize * 100) / 100;
-        } else if (direction === 'SELL') {
-            const price = position.market.offer;
-            pl = Math.round((position.position.level - price) * positionSize * 100) / 100;
-        }
-
-        if (openSummedPositions[instrumentName]) {
-            // Using Math.round() to keep the pl at 2 decimal places
-            openSummedPositions[instrumentName].pl = Math.round((openSummedPositions[instrumentName].pl + pl) * 100) / 100;
-            openSummedPositions[instrumentName].positions.push(position);
+        if (openPositionsResponse.ok) {
+            console.log(`Get open positions API attempt ${attempts} succeeded`);
+            const openPositionsData = await openPositionsResponse.json();
+            return openPositionsData;
         } else {
-            openSummedPositions[instrumentName] = { pl: pl, positions: [position] };
+            const responseBody = await openPositionsResponse.json();
+            console.log(`Attempt ${attempts} failed with status: ${openPositionsResponse.status}, Response: ${JSON.stringify(responseBody, null, 2)}`);
+            attempts++;
+            if (attempts > 3) {
+                throw new Error(`Error getting open positions. HTTP status: ${openPositionsResponse.status}, Response: ${JSON.stringify(responseBody, null, 2)}`);
+            }
         }
-
-    });
-
-    // Add a plRatio property to each instrumentName and the market status
-
-    for (const instrumentName in openSummedPositions) {
-        const plRatio = openSummedPositions[instrumentName].pl / accountBalance;
-        openSummedPositions[instrumentName].plRatio = plRatio;
-        const marketStatus = openSummedPositions[instrumentName].positions[0].market.marketStatus;
-        openSummedPositions[instrumentName].marketStatus = marketStatus;
     }
 
-    return openSummedPositions;
 }
